@@ -21,11 +21,11 @@ def get_local_coordinates(vertices, point):
     return np.linalg.solve(np.array(axes).T, point - origin)[:tdim]
 
 
-def assemble_point_sources(space, points):
+def assemble_point_sources(space, points, weights):
     vector = np.zeros(space.dofmap.index_map.size_global)
 
     mesh = space.mesh
-    for point in points:
+    for point, weight in zip(points, weights):
         # Get cell
         tree = BoundingBoxTree(mesh, mesh.geometry.dim)
         cell_candidates = compute_collisions(tree, point)
@@ -42,7 +42,7 @@ def assemble_point_sources(space, points):
         dofs = space.dofmap.cell_dofs(cell)
 
         for d, v in zip(dofs, values):
-            vector[d] += v
+            vector[d] += v * weight
 
     return vector
 
@@ -53,7 +53,7 @@ def test_point_sources_triangle():
     mesh = create_unit_square(MPI.COMM_WORLD, 2, 2)
     space = FunctionSpace(mesh, ("Lagrange", 1))
 
-    vector = assemble_point_sources(space, points)
+    vector = assemble_point_sources(space, points, [1, 1])
 
     a = [i for i in vector]
     a.sort()
@@ -65,6 +65,18 @@ def test_point_sources_triangle():
     assert np.isclose(a[-6], 0)
     assert np.isclose(a[0], 0)
 
+    vector = assemble_point_sources(space, points, [2, 1])
+
+    a = [i for i in vector]
+    a.sort()
+    assert np.isclose(a[-1], 1)
+    assert np.isclose(a[-2], 4/5)
+    assert np.isclose(a[-3], 2/3)
+    assert np.isclose(a[-4], 1/3)
+    assert np.isclose(a[-5], 1/5)
+    assert np.isclose(a[-6], 0)
+    assert np.isclose(a[0], 0)
+
 
 def test_point_sources_tetrahedron():
     points = np.array([(1/4, 1/6, 0), (1/2, 1/2, 15/16)])
@@ -72,7 +84,7 @@ def test_point_sources_tetrahedron():
     mesh = create_unit_cube(MPI.COMM_WORLD, 2, 2, 2)
     space = FunctionSpace(mesh, ("Lagrange", 1))
 
-    vector = assemble_point_sources(space, points)
+    vector = assemble_point_sources(space, points, [1, 1])
 
     a = [i for i in vector]
     a.sort()
@@ -80,6 +92,22 @@ def test_point_sources_tetrahedron():
     assert np.isclose(a[-2], 1/2)
     assert np.isclose(a[-3], 1/3)
     assert np.isclose(a[-4], 1/6)
+    assert np.isclose(a[-5], 1/8)
+    assert np.isclose(a[-6], 0)
+    assert np.isclose(a[0], 0)
+
+
+    mesh = create_unit_cube(MPI.COMM_WORLD, 2, 2, 2)
+    space = FunctionSpace(mesh, ("Lagrange", 1))
+
+    vector = assemble_point_sources(space, points, [2, 1])
+
+    a = [i for i in vector]
+    a.sort()
+    assert np.isclose(a[-1], 1)
+    assert np.isclose(a[-2], 7/8)
+    assert np.isclose(a[-3], 2/3)
+    assert np.isclose(a[-4], 1/3)
     assert np.isclose(a[-5], 1/8)
     assert np.isclose(a[-6], 0)
     assert np.isclose(a[0], 0)
